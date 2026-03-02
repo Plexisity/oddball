@@ -47,7 +47,7 @@ class GameView(arcade.View):
 
     def __init__(self):
         super().__init__()
-        arcade.set_background_color(arcade.color.WHITE)
+        arcade.set_background_color(arcade.color.DARK_SLATE_GRAY)
 
         self.player_list = arcade.SpriteList()
         self.wall_list = arcade.SpriteList(use_spatial_hash=True)
@@ -168,6 +168,9 @@ class GameView(arcade.View):
         return sprite
 
     def _add_default_level(self):
+        self.level_texture = None
+        self.level_size = (SCREEN_WIDTH, SCREEN_HEIGHT)
+
         self.wall_list.clear()
         self.bounce_list.clear()
         self.hazard_list.clear()
@@ -198,6 +201,8 @@ class GameView(arcade.View):
             image = Image.open(level_path)
             world_width, world_height = image.size
             self.window.set_size(world_width, world_height)
+            self.level_texture = arcade.load_texture(level_path)
+            self.level_size = (world_width, world_height)
 
             self.spawn_point = (140, 220)
 
