@@ -41,6 +41,10 @@ class RectRun:
 
 
 class GameView(arcade.View):
+    # Defensive defaults in case on_draw is called before __init__ completes
+    level_texture: Optional[arcade.Texture] = None
+    level_size: Tuple[int, int] = (SCREEN_WIDTH, SCREEN_HEIGHT)
+
     def __init__(self):
         super().__init__()
         arcade.set_background_color(arcade.color.WHITE)
