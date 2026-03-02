@@ -15,10 +15,11 @@ SCREEN_TITLE = "Oddball"
 GRAVITY = 1.0
 
 # Level color keys
-BLACK = (0, 0, 0)      # Bounce surface (fling up from side/bottom)
+BLACK = (0, 0, 0)      # Bounce surface (fling up)
 RED = (255, 0, 0)      # Send player back one level
 GREEN = (0, 255, 0)    # Send player forward one level
 WHITE = (255, 255, 255)
+TRANSPARENT = (0, 0, 0, 0)
 
 # Generic solid colors that stay visible and collide
 VISIBLE_SOLID_COLORS = {
@@ -61,9 +62,6 @@ class GameView(arcade.View):
         self.level_index = 0
         self.spawn_point = (140, 220)
 
-        self.level_texture: Optional[arcade.Texture] = None
-        self.level_size: Tuple[int, int] = (SCREEN_WIDTH, SCREEN_HEIGHT)
-
         self.physics_engine = None
         self._load_level(self.level_index)
 
@@ -86,9 +84,14 @@ class GameView(arcade.View):
     def _is_empty(self, pixel: Tuple[int, ...]) -> bool:
         if len(pixel) == 4 and pixel[3] == 0:
             return True
-        return self._rgb(pixel) == WHITE
+        rgb = self._rgb(pixel)
+        return rgb == WHITE
 
     def _build_merged_rectangles(self, image: Image.Image) -> Dict[str, List[RectRun]]:
+        """
+        Convert per-pixel mask image into merged rectangles.
+        This is much faster than creating one sprite per pixel.
+        """
         img = image.convert("RGBA")
         pixels = img.load()
         width, height = img.size
@@ -148,8 +151,9 @@ class GameView(arcade.View):
 
             done_keys = [k for k in active.keys() if k not in current_keys]
             for key in done_keys:
-                run_type = key[2]
-                merged[run_type].append(active.pop(key))
+                run_x, _run_w, run_type, _run_color = key
+                rect = active.pop(key)
+                merged[run_type].append(rect)
 
         for key in list(active.keys()):
             run_type = key[2]
@@ -164,9 +168,6 @@ class GameView(arcade.View):
         return sprite
 
     def _add_default_level(self):
-        self.level_texture = None
-        self.level_size = (SCREEN_WIDTH, SCREEN_HEIGHT)
-
         self.wall_list.clear()
         self.bounce_list.clear()
         self.hazard_list.clear()
@@ -192,14 +193,11 @@ class GameView(arcade.View):
 
         if not self.level_paths:
             self._add_default_level()
-            self.window.set_size(*self.level_size)
         else:
             level_path = self.level_paths[index]
             image = Image.open(level_path)
             world_width, world_height = image.size
-            self.level_size = (world_width, world_height)
             self.window.set_size(world_width, world_height)
-            self.level_texture = arcade.load_texture(level_path)
 
             self.spawn_point = (140, 220)
 
@@ -235,22 +233,15 @@ class GameView(arcade.View):
         self.player.change_x = 0
         self.player.change_y = 0
 
-    def _touching_black_from_top_only(self, block: arcade.Sprite) -> bool:
-        # If player is on top of black, treat it like normal ground.
-        return self.player.bottom >= block.top - 3 and self.player.change_y <= 0
-
     def on_draw(self):
         self.clear()
 
-        # Guard against partially initialized view objects
-        level_texture = getattr(self, "level_texture", None)
-        level_size = getattr(self, "level_size", (SCREEN_WIDTH, SCREEN_HEIGHT))
-
-        if level_texture is not None:
-            width, height = level_size
-            arcade.draw_lrwh_rectangle_textured(0, 0, width, height, level_texture)
+        if self.level_texture is not None:
+            width, height = self.level_size
+            arcade.draw_lrwh_rectangle_textured(0, 0, width, height, self.level_texture)
 
         self.wall_list.draw()
+        self.bounce_list.draw()
         self.hazard_list.draw()
         self.goal_list.draw()
         self.player_list.draw()
@@ -260,12 +251,8 @@ class GameView(arcade.View):
         self.physics_engine.update()
         self.player.update_animation(delta_time)
 
-        touching_black = arcade.check_for_collision_with_list(self.player, self.bounce_list)
-        if touching_black:
-            only_top_contact = all(self._touching_black_from_top_only(block) for block in touching_black)
-            if not only_top_contact:
-                # Scratch-like behavior: touching black from side/bottom pushes player upward.
-                self.player.change_y = max(self.player.change_y, 11)
+        if arcade.check_for_collision_with_list(self.player, self.bounce_list):
+            self.player.change_y = max(self.player.change_y, self.player.jump_speed * 1.2)
 
         if arcade.check_for_collision_with_list(self.player, self.hazard_list) and self.level_paths:
             self.level_index = max(0, self.level_index - 1)
