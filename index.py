@@ -1,7 +1,7 @@
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import arcade
 from PIL import Image
@@ -231,6 +231,11 @@ class GameView(arcade.View):
 
     def on_draw(self):
         self.clear()
+
+        if self.level_texture is not None:
+            width, height = self.level_size
+            arcade.draw_lrwh_rectangle_textured(0, 0, width, height, self.level_texture)
+
         self.wall_list.draw()
         self.bounce_list.draw()
         self.hazard_list.draw()
